@@ -42,8 +42,8 @@ class DocPipelineWorkflow:
         # Step 1: Collect results
         log.info("Step 1: Collecting results")
         results = await workflow.step(
-            collect_results,
-            {"experiment_ids": input.experiment_ids},
+            function=collect_results,
+            function_input={"experiment_ids": input.experiment_ids},
             retry_policy=RetryPolicy(initial_interval=timedelta(seconds=10), maximum_attempts=3),
             start_to_close_timeout=timedelta(seconds=60)
         )
@@ -51,8 +51,8 @@ class DocPipelineWorkflow:
         # Step 2: Compile writeup
         log.info("Step 2: Compiling writeup")
         writeup = await workflow.step(
-            compile_writeup,
-            {
+            function=compile_writeup,
+            function_input={
                 "title": input.title,
                 "sections": input.sections,
                 "format": "markdown"
@@ -64,8 +64,8 @@ class DocPipelineWorkflow:
         # Step 3: Review
         log.info("Step 3: Reviewing document")
         review = await workflow.step(
-            reviewer,
-            {
+            function=reviewer,
+            function_input={
                 "content": writeup["document"],
                 "review_type": "writeup"
             },

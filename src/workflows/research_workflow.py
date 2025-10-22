@@ -42,8 +42,8 @@ class ResearchWorkflow:
         # Step 1: Search papers
         log.info("Step 1: Searching papers")
         papers_result = await workflow.step(
-            search_papers,
-            {"query": input.topic, "max_results": input.max_papers},
+            function=search_papers,
+            function_input={"query": input.topic, "max_results": input.max_papers},
             retry_policy=RetryPolicy(initial_interval=timedelta(seconds=10), maximum_attempts=3),
             start_to_close_timeout=timedelta(seconds=60)
         )
@@ -51,8 +51,8 @@ class ResearchWorkflow:
         # Step 2: Generate ideas
         log.info("Step 2: Generating ideas")
         ideas_result = await workflow.step(
-            generate_ideas,
-            {"topic": input.topic, "num_ideas": input.num_ideas},
+            function=generate_ideas,
+            function_input={"topic": input.topic, "num_ideas": input.num_ideas},
             retry_policy=RetryPolicy(initial_interval=timedelta(seconds=10), maximum_attempts=3),
             start_to_close_timeout=timedelta(seconds=90)
         )
@@ -60,8 +60,8 @@ class ResearchWorkflow:
         # Step 3: Refine ideas
         log.info("Step 3: Refining ideas")
         refined_result = await workflow.step(
-            refine_ideas,
-            {"ideas": ideas_result["ideas"]},
+            function=refine_ideas,
+            function_input={"ideas": ideas_result["ideas"]},
             retry_policy=RetryPolicy(initial_interval=timedelta(seconds=10), maximum_attempts=3),
             start_to_close_timeout=timedelta(seconds=90)
         )

@@ -176,6 +176,27 @@ class ResearchWorkflow:
         return result
 ```
 
+### ✅ Critical: Use Named Parameters in workflow.step()
+
+**Correct:**
+```python
+result = await workflow.step(
+    function=my_function,           # ✅ Named parameter
+    function_input={"key": "value"} # ✅ Named parameter
+)
+```
+
+**WRONG:**
+```python
+result = await workflow.step(
+    my_function,           # ❌ Positional argument
+    {"key": "value"}       # ❌ Positional argument
+)
+# TypeError: Workflow.step() takes 1 positional argument but 3 were given
+```
+
+**Note**: The type checker may show false positive errors for `start_to_close_timeout` parameter, but it is valid and works correctly at runtime.
+
 ## Function Conventions
 
 ### ✅ Function Decorator Pattern
