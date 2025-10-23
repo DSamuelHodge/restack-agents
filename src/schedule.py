@@ -3,8 +3,10 @@ Schedule agent and send tasks
 """
 import asyncio
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 from restack_ai import Restack
+from temporalio.exceptions import WorkflowAlreadyStartedError
 
 from src.models import BaseModelConfig, Task
 
@@ -18,7 +20,9 @@ async def main():
     # Initialize Restack client
     client = Restack()
     
-    agent_id = "basemodel-agent-1"
+    # Use timestamp to ensure unique agent_id for each run
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    agent_id = f"basemodel-agent-{timestamp}"
     
     print(f"Scheduling BaseModel Agent: {agent_id}")
     

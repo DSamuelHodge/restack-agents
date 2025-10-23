@@ -5,7 +5,7 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from restack_ai import Restack
-from restack_ai.restack import ServiceOptions
+from restack_ai.restack import ServiceOptions, ResourceOptions
 
 from src.agents import BaseModelAgent
 from src.workflows import ResearchWorkflow, DocPipelineWorkflow
@@ -57,7 +57,10 @@ async def main():
             compile_writeup,
             reviewer,
         ],
-        task_queue="basemodel-agent-queue",
+    # No extra resources to register for now
+    resources=ResourceOptions(),
+        # IMPORTANT: Use the default 'restack' task queue so UI and scheduler can find the service
+        task_queue="restack",
         options=ServiceOptions(
             rate_limit=10,  # Max 10 tasks per second
             max_concurrent_function_runs=5,
@@ -68,7 +71,7 @@ async def main():
     print("  - Agent: BaseModelAgent")
     print("  - Workflows: ResearchWorkflow, DocPipelineWorkflow")
     print("  - Functions: 11 tools registered")
-    print("  - Task Queue: basemodel-agent-queue")
+    print("  - Task Queue: restack")
     print("\nService is running. Press Ctrl+C to stop.")
 
 

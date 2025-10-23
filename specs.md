@@ -1,10 +1,27 @@
-# BaseModel Agent - Restack-Native Implementation — **Restack-native BaseModel Agent** (from scratch, Python) that feels first-class in Restack instead of a port. Below is a **battle-tested plan** you can build against. I’ll cover goals, responsibilities, state & memory, planning, tool execution, safety, observability, events/interfaces, directory layout, and a phased roadmap.
+# BaseModel Agent - Restack-Native Implementation
 
-
-
-> **Status**: ✅ **MVP v0.1.0 Complete** - All tests passing, service running successfully  ---
-
+> **Status**: ✅ **MVP v0.2.0 Complete** - Workflow determinism fixes, full task execution working
+> 
 > **Last Updated**: October 22, 2025
+
+**Restack-native BaseModel Agent** built from scratch in Python that feels first-class in Restack instead of a port. This document covers goals, responsibilities, state & memory, planning, tool execution, safety, observability, events/interfaces, directory layout, and implementation roadmap.
+
+## 🔧 Recent Changes (v0.2.0)
+
+**Workflow Determinism Fixes** - October 22, 2025
+
+The agent now fully complies with Temporal/Restack workflow determinism requirements:
+
+- **Removed non-deterministic time calls**: Eliminated all `datetime.now()` and `time.time()` calls from workflow-executed code
+- **Timestamp handling**: Set timestamps to `0.0` for Plan.created_at, Snapshot.timestamp, stats tracking
+- **Latency tracking**: Made latency_ms optional (None) instead of calculating with time functions
+- **Model defaults**: Updated Task, HistoryEntry, and Artifact models to use static defaults (0.0) instead of time-based factories
+- **Task queue alignment**: Ensured service and scheduler both use "restack" queue for proper communication
+- **Full execution verified**: Successfully tested both research and writeup task pipelines end-to-end
+
+**Key Learning**: Temporal workflows require deterministic replay. Any non-deterministic function call (like getting current time) causes `RestrictedWorkflowAccessError`. For timestamp tracking in workflows, either pass timestamps from outside the workflow context or omit them entirely.
+
+---
 
 # Goals (what this basemodel must guarantee)
 

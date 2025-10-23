@@ -3,7 +3,6 @@ Event and data models for BaseModel Agent
 """
 from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
-from datetime import datetime
 
 
 class Task(BaseModel):
@@ -13,13 +12,13 @@ class Task(BaseModel):
     kind: Literal["research", "writeup", "review", "custom"] = "custom"
     payload: dict[str, Any] = Field(default_factory=dict, description="Task-specific data")
     priority: int = Field(default=0, description="Higher number = higher priority")
-    created_at: float = Field(default_factory=lambda: datetime.now().timestamp())
+    created_at: float = Field(default=0.0, description="Timestamp (not available in workflow context)")
 
 
 class HistoryEntry(BaseModel):
     """Represents a single entry in the agent's history/memory"""
     
-    ts: float = Field(default_factory=lambda: datetime.now().timestamp())
+    ts: float = Field(default=0.0, description="Timestamp (not available in workflow context)")
     kind: Literal["plan", "step", "obs", "error", "meta"] = "meta"
     name: str = Field(description="Name of the action/step/observation")
     inputs_digest: str = Field(default="", description="Hash/summary of inputs")
@@ -38,7 +37,7 @@ class Artifact(BaseModel):
     location: Optional[str] = Field(default=None, description="File path, URL, or storage key")
     size_bytes: Optional[int] = None
     checksum: Optional[str] = None
-    created_at: float = Field(default_factory=lambda: datetime.now().timestamp())
+    created_at: float = Field(default=0.0, description="Timestamp (not available in workflow context)")
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

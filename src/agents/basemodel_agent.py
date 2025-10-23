@@ -3,7 +3,7 @@ BaseModel Agent - Core agent implementation
 """
 import json
 import hashlib
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any, Optional, Literal
 from restack_ai.agent import agent, condition, log, import_functions
 
@@ -201,8 +201,6 @@ class BaseModelAgent:
         """Process a single task"""
         log.info(f"Processing task: {task.id} ({task.kind})")
         
-        start_time = datetime.now()
-        
         try:
             # Generate plan
             await self._plan_task(task)
@@ -210,14 +208,13 @@ class BaseModelAgent:
             # Execute plan
             await self._execute_plan(task)
             
-            # Mark success
-            latency = int((datetime.now() - start_time).total_seconds() * 1000)
+            # Mark success (no latency tracking in workflow context)
             self._log_event(
                 kind="obs",
                 name=f"task_completed:{task.kind}",
                 inputs_digest=task.id,
                 result_digest="success",
-                latency_ms=latency,
+                latency_ms=None,
             )
             
             self.stats["tasks_completed"] += 1
@@ -289,7 +286,7 @@ class BaseModelAgent:
             task_id=task.id,
             mode="scripted",
             steps=steps,
-            created_at=datetime.now().timestamp(),
+            created_at=0.0,  # Timestamp not available in workflow context
         )
     
     def _heuristic_planner(self, task: Task) -> Plan:
@@ -340,8 +337,6 @@ class BaseModelAgent:
             self.completed_steps.add(step_obj.name)
             return
         
-        start_time = datetime.now()
-        
         try:
             # Map step name to function
             func = self._get_function(step_obj.name)
@@ -357,14 +352,13 @@ class BaseModelAgent:
                 start_to_close_timeout=timeout,
             )
             
-            # Log success
-            latency = int((datetime.now() - start_time).total_seconds() * 1000)
+            # Log success (no latency tracking in workflow context)
             self._log_event(
                 kind="step",
                 name=step_obj.name,
                 inputs_digest=self._digest(step_obj.inputs),
                 result_digest=self._digest(result),
-                latency_ms=latency,
+                latency_ms=None,
             )
             
             self.stats["steps_executed"] += 1
@@ -432,7 +426,7 @@ class BaseModelAgent:
             # Replace history
             self.history = [HistoryEntry(**h) for h in result["compacted_history"]]
             
-            self.stats["last_compaction"] = datetime.now().timestamp()
+            self.stats["last_compaction"] = 0.0  # Timestamp not available in workflow context
             
             log.info(f"Memory compacted: {result['original_count']} -> {result['compacted_count']} entries")
             
@@ -461,12 +455,12 @@ class BaseModelAgent:
             return
             
         try:
-            snapshot_id = f"{int(datetime.now().timestamp())}"
+            snapshot_id = "workflow_snapshot"  # Simple ID in workflow context
             
             snapshot = AgentSnapshot(
                 snapshot_id=snapshot_id,
                 agent_name=self.cfg.agent_name,
-                timestamp=datetime.now().timestamp(),
+                timestamp=0.0,  # Timestamp not available in workflow context
                 config=self.cfg.model_dump(),
                 inbox=[t.model_dump() for t in self.inbox],
                 plan=self.plan.model_dump() if self.plan else None,
