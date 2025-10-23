@@ -1,15 +1,25 @@
-# Agents
+# Restack Python Agent Reference
 
-Library documentation for building AI agents with Restack
+Complete guide for building AI agents with Restack's Python framework.
 
-An agent operates as an event-driven background process that persists state, executes tasks over time, and runs continuously for weeks or even months.
-Learn how to [build reliable agents](https://docs.restack.io/blueprints/introduction)
+---
 
-### [​](https://docs.restack.io/libraries/python/agents\#%40agent-defn)  `@agent.defn()`
+## What is an Agent?
 
+An **agent** is an event-driven background process that:
+- Persists state across restarts
+- Executes tasks over extended periods
+- Runs continuously (weeks to months)
+- Responds to external events
+
+---
+
+## Core Decorators
+
+### `@agent.defn()`
 Defines the agent class.
 
-
+```python
 from restack_ai.agent import agent
 
 @agent.defn()
@@ -17,312 +27,439 @@ class MyAgent:
     @agent.run
     async def run(self):
         pass
-
 ```
 
-### [​](https://docs.restack.io/libraries/python/agents\#init)  `__init__()`
+### `@agent.run`
+Entry point for agent execution.
 
-Allows defining variables that the agent keeps in its state.
+```python
+@agent.defn()
+class MyAgent:
+    @agent.run
+    async def run(self):
+        # Main logic here
+        return {"status": "complete"}
+```
 
+### `@agent.event`
+Handles incoming events that modify agent state.
 
+```python
+from typing import List
 from restack_ai.agent import agent
 
 @agent.defn()
 class MyAgent:
-    def __init__(self) -> None:
-        self.end = False
+    def __init__(self):
         self.messages = []
-
-```
-
-### [​](https://docs.restack.io/libraries/python/agents\#%40agent-event)  `@agent.event`
-
-Defines an event handler for the agent.
-The most common ones include `messages` and `end`.
-
-
-from restack_ai.agent import agent, event
-
-@agent.defn()
-class MyAgent:
+        self.end = False
+    
     @agent.event
-    async def messages(self, messages: List[Message]):
+    async def messages(self, messages: List[dict]):
+        """Receive new messages"""
         self.messages = messages
         return messages
-
+    
     @agent.event
     async def end(self):
+        """Signal shutdown"""
         self.end = True
-        return end
-
+        return True
 ```
 
-### [​](https://docs.restack.io/libraries/python/agents\#%40agent-run)  `@agent.run`
+---
 
-Defines the entry point for the agent.
+## State Management
 
+### `__init__()`
+Define variables that persist in agent state.
 
-from restack_ai.agent import agent
-
+```python
 @agent.defn()
 class MyAgent:
-    @agent.run
-    async def run(self):
-        pass
-
+    def __init__(self):
+        self.config = None
+        self.tasks = []
+        self.completed = 0
 ```
 
-### [​](https://docs.restack.io/libraries/python/agents\#%40agent-condition)  `@agent.condition`
+---
 
-Defines a condition for the agent to wait for.
-Used for example to wait for an event and complete the agent.
+## Control Flow
 
-agent.py
+### `condition()`
+Wait for a state condition to become true.
 
-
+```python
 from restack_ai.agent import agent, condition
 
 @agent.defn()
 class MyAgent:
+    def __init__(self):
+        self.end = False
+    
     @agent.run
     async def run(self):
+        # Wait until end flag is set
         await condition(lambda: self.end)
-
+        return {"shutdown": True}
 ```
 
-### [​](https://docs.restack.io/libraries/python/agents\#agent-step)  `agent.step()`
+**Common patterns:**
+```python
+# Wait for configuration
+await condition(lambda: self.config is not None)
 
-Inside an agent, use steps to define how and when functions run.
-
-
-from restack_ai.agent import agent, step
-
-await agent.step(
-    function=send_email,
-    function_input=SendEmailInput(
-        text=text,
-        subject=input.subject,
-        to=input.to,
-    ),
-    start_to_close_timeout=timedelta(seconds=120)
-)
-
+# Wait for work or shutdown
+await condition(lambda: len(self.tasks) > 0 or self.end)
 ```
 
-### [​](https://docs.restack.io/libraries/python/agents\#agent-should-continue-as-new)  `agent.should_continue_as_new()`
+---
 
-Return true/false if the agent needs a restart with a following `agent.agent_continue_as_new()` call.
-Function checks amount of events and history on the running agent to determine if it needs a restart or not.
+## Executing Steps
 
+### `agent.step()`
+Execute a function with timeout and retry policies.
 
-from restack_ai.agent import agent
+```python
+from restack_ai.agent import agent, import_functions
+from datetime import timedelta
+
+with import_functions():
+    from src.functions.email import send_email
 
 @agent.defn()
 class MyAgent:
     @agent.run
     async def run(self):
-        self.end = false
-        await agent.condition(lambda: end is True or agent.should_continue_as_new())
-        agent.agent_continue_as_new()
-
+        result = await agent.step(
+            function=send_email,
+            function_input={
+                "to": "user@example.com",
+                "subject": "Hello",
+                "text": "Message body"
+            },
+            start_to_close_timeout=timedelta(seconds=120),
+            retry_policy=RetryPolicy(
+                max_attempts=3,
+                initial_interval=timedelta(seconds=10),
+                backoff_coefficient=2.0
+            )
+        )
+        return result
 ```
 
-### [​](https://docs.restack.io/libraries/python/agents\#agent-agent-continue-as-new)  `agent.agent_continue_as_new()`
+**Parameters:**
 
-Restart the current agent with the same agent id and input at the end of the current run.
-Use this for long running agents or agents expected to receive lots of events (Over 2000).
-Restack spawns a new agent with the same agentId and with the provided input passed to the agentContinueAsNew function.
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `function` | callable | Function to execute (required) |
+| `function_input` | dict | Input data (required) |
+| `task_queue` | str | Queue name (default: "restack") |
+| `start_to_close_timeout` | timedelta | Max execution time |
+| `schedule_to_close_timeout` | timedelta | Max time from scheduling |
+| `schedule_to_start_timeout` | timedelta | Max wait before execution |
+| `heartbeat_timeout` | timedelta | Heartbeat interval |
+| `retry_policy` | RetryPolicy | Retry configuration |
 
+**RetryPolicy options:**
+- `max_attempts` (int) - Number of retries
+- `initial_interval` (timedelta) - First retry delay
+- `max_interval` (timedelta) - Max retry delay
+- `backoff_coefficient` (float) - Exponential backoff multiplier
 
-from restack_ai.agent import agent
+---
 
+## Long-Running Agents
+
+### `agent.should_continue_as_new()`
+Check if agent needs restart (after ~2000 events).
+
+```python
 @agent.defn()
 class MyAgent:
     @agent.run
     async def run(self):
-        await agent.agent_continue_as_new()
-
+        self.end = False
+        
+        # Wait for end signal or restart trigger
+        await condition(
+            lambda: self.end or agent.should_continue_as_new()
+        )
+        
+        if agent.should_continue_as_new():
+            agent.agent_continue_as_new()
+        
+        return {"status": "complete"}
 ```
 
-## [​](https://docs.restack.io/libraries/python/agents\#utilities)  Utilities
+### `agent.agent_continue_as_new()`
+Restart agent with same ID and fresh history.
 
-### [​](https://docs.restack.io/libraries/python/agents\#import-functions)  `import_functions()`
+```python
+@agent.defn()
+class MyAgent:
+    @agent.run
+    async def run(self):
+        # Process work...
+        
+        # Restart with new input
+        if agent.should_continue_as_new():
+            agent.agent_continue_as_new(
+                input={"checkpoint": self.last_processed_id}
+            )
+```
 
-Imports the [functions](https://docs.restack.io/libraries/python/functions) from the `functions` folder into the agent by leveraging the `with import_functions()` context manager.
+**Use for:**
+- Agents running weeks/months
+- Processing >2000 events
+- Preventing history bloat
 
+---
 
+## Child Workflows/Agents
+
+### `agent.child_start()`
+Launch child agent without waiting for completion.
+
+```python
+from restack_ai.agent import agent
+from src.agents.child_agent import ChildAgent
+
+@agent.defn()
+class ParentAgent:
+    @agent.run
+    async def run(self):
+        # Start child and continue immediately
+        handle = await agent.child_start(
+            agent=ChildAgent,
+            agent_input={"task_id": "123"},
+            task_queue="child-queue"
+        )
+        
+        # Child runs independently
+        return {"child_handle": handle}
+```
+
+### `agent.child_execute()`
+Execute child workflow and wait for result.
+
+```python
+from restack_ai.agent import agent
+from src.workflows.analysis import analyze_data
+
+@agent.defn()
+class ParentAgent:
+    @agent.run
+    async def run(self):
+        # Wait for child to complete
+        result = await agent.child_execute(
+            workflow=analyze_data,
+            workflow_id="analysis-001",
+            workflow_input={"dataset": "users.csv"}
+        )
+        
+        return result  # Child's return value
+```
+
+---
+
+## Utilities
+
+### `import_functions()`
+Import functions within context manager for proper registration.
+
+```python
 from restack_ai.agent import import_functions
 
 with import_functions():
-    from src.functions.my_function import my_function
-
+    from src.functions.search import search_papers
+    from src.functions.email import send_email
+    from src.functions.storage import save_data
 ```
 
-### [​](https://docs.restack.io/libraries/python/agents\#log)  `log()`
+### `log`
+Log messages at different severity levels.
 
-Logs a message to the agent.
-
-agent.py
-
-
+```python
 from restack_ai.agent import agent, log
 
 @agent.defn()
 class MyAgent:
     @agent.run
-    async def run(self, agent_input: AgentInput):
-        log.info("Hello, world!", agent_input)
-
+    async def run(self, input: dict):
+        log.info("Agent started", input)
+        log.debug("Processing task")
+        log.warning("Resource low")
+        log.error("Operation failed")
+        log.critical("Fatal error")
 ```
 
-Use levels like `info`, `debug`, `warning`, `error`, `critical`.
+### `agent.uuid()`
+Generate unique identifier.
 
-### [​](https://docs.restack.io/libraries/python/agents\#agent-child-start)  `agent.child_start()`
-
-Initiates a child workflow or agent directly from an agent.The child workflow or agent runs independently of the parent agent.
-This method doesn’t wait for the child workflow or agent to complete to return a promise but instead returns the child workflow or agent handle.
-
-agent.py
-
-
-from restack_ai.agent import agent, import_functions, child_start
-from src.agents.child_agent import my_child_agent
-
-@agent.defn()
-class ParentAgent:
-    @agent.run
-    async def run(self):
-        handle = await agent.child_start(
-            agent=my_child_agent,
-            agent_input={"key": "value"},
-        )
-        return handle
-
-```
-
-## Optional parameters
-
-[​](https://docs.restack.io/libraries/python/agents#param-task-queue)
-
-task\_queue
-
-string
-
-default:"restack"
-
-Specifies the task queue for the step. Defaults to the “restack” task queue if not set.
-
-[​](https://docs.restack.io/libraries/python/agents#param-schedule-to-close-timeout)
-
-schedule\_to\_close\_timeout
-
-timedelta
-
-Sets the duration for the task to complete from scheduling.
-
-[​](https://docs.restack.io/libraries/python/agents#param-schedule-to-start-timeout)
-
-schedule\_to\_start\_timeout
-
-timedelta
-
-Defines the time before task execution begins.
-
-[​](https://docs.restack.io/libraries/python/agents#param-start-to-close-timeout)
-
-start\_to\_close\_timeout
-
-timedelta
-
-Specifies the time for task completion after starting.
-
-[​](https://docs.restack.io/libraries/python/agents#param-heartbeat-timeout)
-
-heartbeat\_timeout
-
-timedelta
-
-Determines the interval for sending heartbeat signals.
-
-[​](https://docs.restack.io/libraries/python/agents#param-retry-policy)
-
-retry\_policy
-
-RetryPolicy
-
-Configures the retry strategy for the task.
-
-- `max_attempts` (int) Number of retry attempts.
-- `initial_interval` (timedelta) Initial delay before the first retry.
-- `max_interval` (timedelta) Delay between retries.
-- `backoff_coefficient` (float) Factor by which the retry interval increases with each attempt.
-
-### [​](https://docs.restack.io/libraries/python/agents\#agent-child-execute)  `agent.child_execute()`
-
-Execute a child agent directly from an agent and wait for its completion.
-Unlike `child_start()`, `child_execute()` waits until the child workflow completes and returns its result. The child workflow runs as part of the agent’s execution flow.
-
-agents/parent\_agent.py
-
-
-from restack_ai.agent import agent, child_execute
-from src.workflows.child_workflow import my_child_workflow
-
-@agent.defn()
-class ParentAgent:
-    @agent.run
-    async def run(self):
-        response = await agent.child_execute(
-            workflow=my_child_workflow,
-            workflow_id="my-workflow-id",
-            workflow_input={"key": "value"},
-        )
-        return response
-
-```
-
-[​](https://docs.restack.io/libraries/python/agents#param-workflow-func)
-
-workflow\_func
-
-function
-
-required
-
-The child workflow function to execute.
-
-### [​](https://docs.restack.io/libraries/python/agents\#agent-uuid)  `agent.uuid`
-
-Generates a unique identifier for the agent.
-
-agent.py
-
-
-from restack_ai.agent import agent, uuid
-
-@agent.defn()
-class MyAgent:
-    @agent.run
-    async def run(self, agent_input: AgentInput):
-        generated_id = agent.uuid()
-        return generated_id
-
-```
-
-### [​](https://docs.restack.io/libraries/python/agents\#agent-agent-info)  `agent.agent_info()`
-
-Retrieves information about the current agent.
-
-agent.py
-
-
-
-from restack_ai.agent import agent, agent_info
-
+```python
 @agent.defn()
 class MyAgent:
     @agent.run
     async def run(self):
-        info = agent_info()
+        task_id = agent.uuid()
+        log.info(f"Task ID: {task_id}")
+        return task_id
+```
+
+### `agent.agent_info()`
+Retrieve current agent metadata.
+
+```python
+@agent.defn()
+class MyAgent:
+    @agent.run
+    async def run(self):
+        info = agent.agent_info()
+        # Returns: agent_id, run_id, task_queue, etc.
+        log.info(f"Running as: {info.agent_id}")
         return info
+```
 
+---
+
+## Complete Example
+
+```python
+from restack_ai.agent import agent, condition, log, import_functions
+from datetime import timedelta
+from typing import List
+
+with import_functions():
+    from src.functions.process import process_item
+
+@agent.defn()
+class TaskProcessor:
+    def __init__(self):
+        self.config = None
+        self.tasks = []
+        self.completed = 0
+        self.end = False
+    
+    @agent.event
+    async def configure(self, config: dict):
+        """Initialize agent configuration"""
+        self.config = config
+        log.info("Agent configured")
+    
+    @agent.event
+    async def add_task(self, task: dict):
+        """Add task to queue"""
+        self.tasks.append(task)
+    
+    @agent.event
+    async def shutdown(self):
+        """Signal graceful shutdown"""
+        self.end = True
+    
+    @agent.run
+    async def run(self):
+        # Wait for configuration
+        await condition(lambda: self.config is not None)
+        log.info("Agent ready")
+        
+        while not self.end:
+            # Wait for work or shutdown
+            await condition(
+                lambda: len(self.tasks) > 0 or 
+                        self.end or 
+                        agent.should_continue_as_new()
+            )
+            
+            # Handle restart
+            if agent.should_continue_as_new():
+                agent.agent_continue_as_new()
+                break
+            
+            # Process tasks
+            while self.tasks and not self.end:
+                task = self.tasks.pop(0)
+                
+                try:
+                    result = await agent.step(
+                        function=process_item,
+                        function_input={"task": task},
+                        start_to_close_timeout=timedelta(seconds=60)
+                    )
+                    
+                    self.completed += 1
+                    log.info(f"Task complete: {task['id']}")
+                    
+                except Exception as e:
+                    log.error(f"Task failed: {e}")
+        
+        return {
+            "status": "shutdown",
+            "completed": self.completed
+        }
+```
+
+---
+
+## Scheduling Agents
+
+```python
+from restack_ai import Restack
+from datetime import datetime
+
+async def start_agent():
+    client = Restack()
+    
+    # Schedule agent
+    agent_id = f"processor-{int(datetime.now().timestamp())}"
+    run_id = await client.schedule_agent(
+        agent_name="TaskProcessor",
+        agent_id=agent_id,
+        task_queue="restack"
+    )
+    
+    # Send configuration
+    await client.send_agent_event(
+        agent_id=agent_id,
+        event_name="configure",
+        event_input={"max_retries": 3}
+    )
+    
+    # Send tasks
+    await client.send_agent_event(
+        agent_id=agent_id,
+        event_name="add_task",
+        event_input={"id": "task-001", "action": "process"}
+    )
+    
+    return run_id
+```
+
+---
+
+## Key Patterns
+
+**Event-driven state machine:**
+```python
+await condition(lambda: self.state == "ready")
+```
+
+**Graceful shutdown:**
+```python
+await condition(lambda: self.end)
+```
+
+**Periodic restarts:**
+```python
+if agent.should_continue_as_new():
+    agent.agent_continue_as_new()
+```
+
+**Error handling:**
+```python
+try:
+    result = await agent.step(...)
+except Exception as e:
+    log.error(f"Failed: {e}")
+```
