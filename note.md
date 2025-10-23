@@ -1,11 +1,3 @@
-Checking Python environment...
-  Creating virtual environment...
-  Virtual environment created!
-
-= *60
-Setup Complete!
-= *60
-
 Next steps:
   1. Activate virtual environment:
        .venv\Scripts\activate
